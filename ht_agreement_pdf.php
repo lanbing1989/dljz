@@ -4,8 +4,9 @@ require 'db.php';
 
 $uuid = $_GET['uuid'] ?? '';
 
+// 查询合同
 $stmt = $db->prepare("
-SELECT a.*, t.content AS template_content, c.client_name, c.contact_person, c.contact_phone, c.contact_email, c.remark, a.seal_id
+SELECT a.*, t.content AS template_content, c.client_name, c.contact_person, c.contact_phone, c.contact_email, c.remark, a.seal_id, a.contract_no, a.contract_hash, a.sign_date, a.sign_image, a.content_snapshot
 FROM contracts_agreement a
 LEFT JOIN contract_templates t ON a.template_id = t.id
 LEFT JOIN contracts c ON a.client_id = c.id
@@ -53,6 +54,19 @@ if (!empty($agreement['sign_date'])) {
     $sign_day = date('d');
 }
 
+// 合同编号、哈希
+$contract_no = $agreement['contract_no'] ?? '';
+$contract_hash = $agreement['contract_hash'] ?? '';
+
+// 动态生成查验URL（支持多域名）
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$host = $_SERVER['HTTP_HOST'];
+$check_url = $protocol . $host . '/contract_verify.php?no=' . urlencode($contract_no);
+
+// 生成二维码图片base64
+$qrcode_img_data = file_get_contents($protocol . $host . '/qrcode.php?text=' . urlencode($check_url));
+$qrcode_base64 = 'data:image/png;base64,' . base64_encode($qrcode_img_data);
+
 $vars = [
     'client_name'    => $agreement['client_name'] ?? '',
     'contact_person' => $agreement['contact_person'] ?? '',
@@ -97,6 +111,11 @@ if (!empty($agreement['content_snapshot'])) {
     }
     $content = nl2br($content);
 }
+
+// ======== 拼接查验二维码和编号/哈希到PDF底部 ========
+$content .= '<img src="'.$qrcode_base64.'" style="height:80px;"><br>'.
+           htmlspecialchars($check_url).
+           '</div>';
 
 $pdf = new TCPDF();
 $pdf->AddPage();

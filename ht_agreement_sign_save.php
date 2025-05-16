@@ -126,12 +126,16 @@ $snapshot_html = render_contract_template($row['template_content'], $vars, $seal
 $contract_hash = hash('sha256', $snapshot_html);
 
 // 合同底部拼接编号、哈希、查验二维码
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$host = $_SERVER['HTTP_HOST'];
+$check_url = $protocol . $host . '/contract_verify.php?no=' . urlencode($contract_no);
+
 $snapshot_html .= "<hr style='border:1px dashed #bbb; margin:20px 0;'>
 <div style='font-size:15px;color:#666;'>
 合同编号：{$contract_no}<br>
 合同哈希：{$contract_hash}<br>
 <span>扫码查验真伪：</span>
-<img src='qrcode.php?text=" . urlencode($contract_no) . "' height='80'>
+<img src='qrcode.php?text={$check_url}' height='80'>
 </div>";
 
 $sign_ip = $_SERVER['REMOTE_ADDR'];
