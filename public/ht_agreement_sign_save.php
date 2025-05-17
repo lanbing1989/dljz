@@ -1,5 +1,6 @@
 <?php
 session_start();
+header('Content-Type: application/json');
 require 'db.php';
 
 // 用uuid参数，不用id
@@ -56,7 +57,10 @@ $imgData = base64_decode(str_replace('data:image/png;base64,','',$imgBase64));
 $saveDir = __DIR__.'/signatures/';
 if (!is_dir($saveDir)) mkdir($saveDir,0777,true);
 $filename = $saveDir . 'sign_' . $row['id'] . '_' . time() . '.png';
-file_put_contents($filename, $imgData);
+if(file_put_contents($filename, $imgData) === false){
+    echo json_encode(['ok'=>false, 'msg'=>'签名图片保存失败']);
+    exit;
+}
 $relativePath = 'signatures/' . basename($filename);
 $sign_date = date('Y-m-d');
 
@@ -64,8 +68,11 @@ $sign_date = date('Y-m-d');
 function generate_contract_no($db) {
     $prefix = 'HT'.date('Ymd');
     $today = date('Y-m-d');
-    $count = $db->querySingle("SELECT COUNT(*) FROM contracts_agreement WHERE sign_date=:today", false, [':today' => $today]);
-    if ($count === false) $count = 0;
+    // 参数绑定兼容
+    $stmt = $db->prepare("SELECT COUNT(*) as num FROM contracts_agreement WHERE sign_date=:today");
+    $stmt->bindValue(':today', $today, SQLITE3_TEXT);
+    $row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
+    $count = $row ? $row['num'] : 0;
     $serial = str_pad($count+1, 3, '0', STR_PAD_LEFT);
     return $prefix.$serial;
 }

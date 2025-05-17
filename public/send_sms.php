@@ -3,7 +3,7 @@ session_start();
 
 // ==== 配置 ====
 $yunpian_apikey = '你的云片apikey'; // 替换为你的云片apikey
-$sign = '你的签名'; // 必须和云片平台匹配
+$sign = '115科技'; // 必须和云片平台审核通过的签名一致
 $interval_seconds = 60; // 同手机号最小间隔
 $ip_limit_hour = 2;    // 每个IP每小时最多几次
 
@@ -49,7 +49,8 @@ if (isset($_SESSION['sms_verify_phone']) && $_SESSION['sms_verify_phone']===$pho
 if (!isset($_SESSION['sms_last_send'])) $_SESSION['sms_last_send'] = [];
 $_SESSION['sms_last_send'][$phone] = time();
 
-$text = "【$sign】您的验证码是{$code}，5分钟内有效。";
+// 【重点：短信内容格式必须是【签名】+内容】
+$text = "【{$sign}】您的验证码是{$code}，5分钟内有效。";
 
 // ==== 调用云片API ====
 $ch = curl_init();
@@ -63,10 +64,12 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
 ]));
 $output = curl_exec($ch);
 curl_close($ch);
+
 $res = json_decode($output, 1);
 if ($res && $res['code'] == 0) {
     echo json_encode(['ok'=>1]);
 } else {
-    echo json_encode(['ok'=>0, 'msg'=>'短信发送失败']);
+    $errmsg = $res && isset($res['msg']) ? $res['msg'] : '短信发送失败';
+    echo json_encode(['ok'=>0, 'msg'=>$errmsg]);
 }
 ?>

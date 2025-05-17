@@ -190,41 +190,122 @@ if (empty($agreement['sign_image'])) {
 <?php if (empty($signature_img)): ?>
 <script src="/bootstrap/signature_pad.umd.min.js"></script>
 <script>
+// ========== 短信验证弹窗 ==========
+function showSmsVerify(callback) {
+    let html = `<div id="smsDialog" style="z-index:9999;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;">
+      <div style="background:#fff;padding:28px 18px 18px 18px;border-radius:10px;max-width:330px;width:100vw;box-shadow:0 2px 10px #aaa">
+        <div class="mb-3">
+          <input type="text" id="smsPhone" class="form-control" placeholder="请输入手机号">
+        </div>
+        <div class="mb-3 d-flex" style="gap:8px;">
+          <input type="text" id="smsCode" class="form-control" placeholder="验证码">
+          <button type="button" class="btn btn-primary" id="smsSendBtn" style="min-width:90px;">获取验证码</button>
+        </div>
+        <div style="color:#888;font-size:13px;margin-bottom:8px;">为保障签署有效性，需短信验证</div>
+        <button type="button" class="btn btn-success w-100" id="smsCheckBtn">提交</button>
+      </div>
+    </div>`;
+    let div = document.createElement('div');
+    div.innerHTML = html;
+    document.body.appendChild(div);
+    let smsSendBtn = div.querySelector('#smsSendBtn');
+    let smsCheckBtn = div.querySelector('#smsCheckBtn');
+    let smsPhone = div.querySelector('#smsPhone');
+    let smsCode = div.querySelector('#smsCode');
+    let sending = false, countdown = 0, timer = null;
+
+    smsSendBtn.onclick = function() {
+        let phone = smsPhone.value.trim();
+        if (!/^1\d{10}$/.test(phone)) { alert('请输入正确手机号'); return; }
+        if (sending || countdown > 0) return;
+        sending = true; smsSendBtn.innerText = '发送中...';
+        fetch('send_sms.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'phone=' + encodeURIComponent(phone)
+        }).then(r=>r.json()).then(res=>{
+            sending = false;
+            if(res.ok){
+                countdown = 60;
+                smsSendBtn.innerText = '60秒后重发';
+                timer = setInterval(()=>{
+                  countdown--;
+                  smsSendBtn.innerText = countdown>0 ? countdown+'秒后重发' : '获取验证码';
+                  if(countdown<=0){clearInterval(timer);}
+                }, 1000);
+                alert('验证码已发送，请查收短信');
+            }else{
+                smsSendBtn.innerText = '获取验证码';
+                alert(res.msg||'发送失败');
+            }
+        }).catch(()=>{sending=false;smsSendBtn.innerText='获取验证码';});
+    };
+
+    smsCheckBtn.onclick = function() {
+        let phone = smsPhone.value.trim();
+        let code = smsCode.value.trim();
+        if (!/^1\d{10}$/.test(phone)) { alert('请输入正确手机号'); return; }
+        if (!/^\d{6}$/.test(code)) { alert('请输入6位验证码'); return; }
+        smsCheckBtn.disabled = true;
+        smsCheckBtn.innerText = "验证中...";
+        fetch('check_sms.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'phone=' + encodeURIComponent(phone) + '&code=' + encodeURIComponent(code)
+        }).then(r=>r.json()).then(res=>{
+            smsCheckBtn.disabled = false;
+            smsCheckBtn.innerText = "验证通过";
+            if(res.ok){
+                document.body.removeChild(div);
+                callback(phone, code);
+            }else{
+                alert(res.msg||'短信验证失败');
+            }
+        }).catch(()=>{
+            smsCheckBtn.disabled = false;
+            smsCheckBtn.innerText = "验证通过";
+            alert('网络错误，请重试');
+        });
+    };
+}
 document.addEventListener('DOMContentLoaded', function() {
     let showBtn = document.getElementById('showSignPad');
     if (showBtn) {
         showBtn.onclick = function() {
-            const area = document.getElementById('signPadArea');
-            area.innerHTML = `
-                <canvas id="signature-pad" width="400" height="180" style="width:100%;height:180px;touch-action:none;"></canvas>
-                <div class="mb-2 d-flex gap-2 flex-wrap">
-                  <button id="clear-sign" class="btn btn-warning btn-lg flex-fill">清除</button>
-                  <button id="save-sign" class="btn btn-success btn-lg flex-fill">确认签署</button>
-                </div>
-                <div class="text-muted text-center" style="font-size:15px;">请用手指或触控笔在上方区域签名</div>
-            `;
-            area.style.display = '';
-            area.scrollIntoView({behavior: 'smooth', block: 'center'});
+            showSmsVerify(function(phone, code){
+                // 弹出签名板
+                const area = document.getElementById('signPadArea');
+                area.innerHTML = `
+                    <canvas id="signature-pad" width="400" height="180" style="width:100%;height:180px;touch-action:none;"></canvas>
+                    <div class="mb-2 d-flex gap-2 flex-wrap">
+                      <button id="clear-sign" class="btn btn-warning btn-lg flex-fill">清除</button>
+                      <button id="save-sign" class="btn btn-success btn-lg flex-fill">确认签署</button>
+                    </div>
+                    <div class="text-muted text-center" style="font-size:15px;">请用手指或触控笔在上方区域签名</div>
+                `;
+                area.style.display = '';
+                area.scrollIntoView({behavior: 'smooth', block: 'center'});
 
-            let canvas = document.getElementById('signature-pad');
-            let pad = new SignaturePad(canvas, { backgroundColor: '#fff', minWidth: 1.5, maxWidth: 3 });
+                let canvas = document.getElementById('signature-pad');
+                let pad = new SignaturePad(canvas, { backgroundColor: '#fff', minWidth: 1.5, maxWidth: 3 });
 
-            document.getElementById('clear-sign').onclick = function() { pad.clear(); }
-            document.getElementById('save-sign').onclick = function() {
-                if (pad.isEmpty()) { alert('请先签名'); return; }
-                let data = pad.toDataURL('image/png');
-                fetch('ht_agreement_sign_save.php?uuid=<?= urlencode($agreement['uuid']) ?>',{
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({ signature: data })
-                }).then(r=>r.json()).then(res=>{
-                    if(res.ok){
-                        location.reload();
-                    }else{
-                        alert(res.msg||'保存失败');
-                    }
-                });
-            }
+                document.getElementById('clear-sign').onclick = function() { pad.clear(); }
+                document.getElementById('save-sign').onclick = function() {
+                    if (pad.isEmpty()) { alert('请先签名'); return; }
+                    let data = pad.toDataURL('image/png');
+                    fetch('ht_agreement_sign_save.php?uuid=<?= urlencode($agreement['uuid']) ?>',{
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ signature: data, phone: phone, code: code })
+                    }).then(r=>r.json()).then(res=>{
+                        if(res.ok){
+                            location.reload();
+                        }else{
+                            alert(res.msg||'保存失败');
+                        }
+                    });
+                }
+            });
         }
     }
 });
