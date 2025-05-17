@@ -4,6 +4,18 @@ require 'db.php';
 function fix_date($d) {
     return preg_replace('/\./', '-', $d);
 }
+// 计算两个日期间的自然月数（包括起止月）
+function count_months($start, $end) {
+    $start_ts = strtotime($start);
+    $end_ts = strtotime($end);
+    if ($start_ts === false || $end_ts === false) return 0;
+    $start_y = date('Y', $start_ts);
+    $start_m = date('m', $start_ts);
+    $end_y = date('Y', $end_ts);
+    $end_m = date('m', $end_ts);
+    return ($end_y - $start_y) * 12 + ($end_m - $start_m) + 1;
+}
+
 $package_types = [
     '小规模纳税人',
     '小规模纳税人零申报',
@@ -17,6 +29,11 @@ $period = $db->query("SELECT * FROM service_periods WHERE id=$period_id")->fetch
 if (isset($_GET['del']) && is_numeric($_GET['del'])) {
     $del_id = intval($_GET['del']);
     $db->exec("DELETE FROM service_segments WHERE id=$del_id AND service_period_id=$period_id");
+    // 删除后同步套餐类型为最新分段的类型（如果还有分段）
+    $latest_seg = $db->query("SELECT package_type FROM service_segments WHERE service_period_id=$period_id ORDER BY end_date DESC LIMIT 1")->fetchArray(SQLITE3_ASSOC);
+    if ($latest_seg) {
+        $db->exec("UPDATE service_periods SET package_type = '" . SQLite3::escapeString($latest_seg['package_type']) . "' WHERE id = $period_id");
+    }
     header("Location: segment_add.php?period_id=$period_id");
     exit;
 }
@@ -50,11 +67,9 @@ if ($_SERVER['REQUEST_METHOD']=='POST' && !$edit_id && $can_add) {
     $package_type = $_POST['package_type'];
     $start = fix_date(trim($new_start));
     $end = fix_date(trim($to_date));
-    $start_ts = strtotime($start);
-    $end_ts = strtotime($end);
-    if ($start_ts === false || $end_ts === false) die("日期格式错误!");
-    $days = ($end_ts - $start_ts) / (60*60*24) + 1;
-    $fee = round($price_per_year * $days / 365, 2);
+    $months = count_months($start, $end);
+    $fee = round($price_per_year * $months / 12, 2);
+
     $stmt = $db->prepare("INSERT INTO service_segments (service_period_id, start_date, end_date, price_per_year, segment_fee, package_type, remark) VALUES (:service_period_id, :start_date, :end_date, :price_per_year, :segment_fee, :package_type, :remark)");
     $stmt->bindValue(':service_period_id', $period_id);
     $stmt->bindValue(':start_date', $start);
@@ -64,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD']=='POST' && !$edit_id && $can_add) {
     $stmt->bindValue(':package_type', $package_type);
     $stmt->bindValue(':remark', $remark);
     $stmt->execute();
+    // 新增分段后，同步套餐类型为最新分段的类型
+    $latest_seg = $db->query("SELECT package_type FROM service_segments WHERE service_period_id=$period_id ORDER BY end_date DESC LIMIT 1")->fetchArray(SQLITE3_ASSOC);
+    if ($latest_seg) {
+        $db->exec("UPDATE service_periods SET package_type = '" . SQLite3::escapeString($latest_seg['package_type']) . "' WHERE id = $period_id");
+    }
     header('Location: segment_add.php?period_id='.$period_id);
     exit;
 }
@@ -76,11 +96,9 @@ if ($_SERVER['REQUEST_METHOD']=='POST' && $edit_id) {
     $package_type = $_POST['package_type'];
     $start = fix_date(trim($edit_seg['start_date']));
     $end = fix_date(trim($to_date));
-    $start_ts = strtotime($start);
-    $end_ts = strtotime($end);
-    if ($start_ts === false || $end_ts === false) die("日期格式错误!");
-    $days = ($end_ts - $start_ts) / (60*60*24) + 1;
-    $fee = round($price_per_year * $days / 365, 2);
+    $months = count_months($start, $end);
+    $fee = round($price_per_year * $months / 12, 2);
+
     $stmt = $db->prepare("UPDATE service_segments SET end_date=:end_date, price_per_year=:price_per_year, segment_fee=:segment_fee, package_type=:package_type, remark=:remark WHERE id=:id");
     $stmt->bindValue(':end_date', $end);
     $stmt->bindValue(':price_per_year', $price_per_year);
@@ -89,6 +107,11 @@ if ($_SERVER['REQUEST_METHOD']=='POST' && $edit_id) {
     $stmt->bindValue(':remark', $remark);
     $stmt->bindValue(':id', $edit_id);
     $stmt->execute();
+    // 编辑分段后，同步套餐类型为最新分段的类型
+    $latest_seg = $db->query("SELECT package_type FROM service_segments WHERE service_period_id=$period_id ORDER BY end_date DESC LIMIT 1")->fetchArray(SQLITE3_ASSOC);
+    if ($latest_seg) {
+        $db->exec("UPDATE service_periods SET package_type = '" . SQLite3::escapeString($latest_seg['package_type']) . "' WHERE id = $period_id");
+    }
     header('Location: segment_add.php?period_id='.$period_id);
     exit;
 }

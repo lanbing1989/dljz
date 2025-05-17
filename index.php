@@ -22,9 +22,16 @@ foreach ($params as $k => $v) $count_stmt->bindValue($k, $v);
 $total = $count_stmt->execute()->fetchArray()[0];
 $total_pages = max(1, ceil($total / $page_size));
 
-// 客户列表
+// 客户列表，增加最新套餐类型（取最新服务期的最后一个分段的套餐类型）
 $query = "SELECT c.*, 
-    (SELECT MAX(service_end) FROM service_periods sp WHERE sp.contract_id = c.id) AS latest_end
+    (SELECT MAX(service_end) FROM service_periods sp WHERE sp.contract_id = c.id) AS latest_end,
+    (
+        SELECT sg.package_type
+        FROM service_periods sp
+        JOIN service_segments sg ON sg.service_period_id = sp.id
+        WHERE sp.contract_id = c.id
+        ORDER BY sg.end_date DESC LIMIT 1
+    ) AS latest_package_type
     FROM contracts c
     WHERE 1 $where
     ORDER BY latest_end DESC, c.id DESC
@@ -70,6 +77,7 @@ $result = $stmt->execute();
             <th>联系电话</th>
             <th>联系邮箱</th>
             <th>最近服务期截止</th>
+            <th>最新套餐类型</th>
             <th>备注</th>
             <th>操作</th>
         </tr>
@@ -83,6 +91,7 @@ $result = $stmt->execute();
             <td><?=htmlspecialchars($row['contact_phone'])?></td>
             <td><?=htmlspecialchars($row['contact_email'])?></td>
             <td><?=$row['latest_end'] ? $row['latest_end'] : '-'?></td>
+            <td><?=$row['latest_package_type'] ? htmlspecialchars($row['latest_package_type']) : '-'?></td>
             <td><?=htmlspecialchars($row['remark'])?></td>
             <td>
                 <a href="contract_edit.php?id=<?=$row['id']?>" class="btn btn-sm btn-outline-primary">编辑</a>

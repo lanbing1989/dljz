@@ -4,6 +4,17 @@ require 'db.php';
 function fix_date($d) {
     return preg_replace('/\./', '-', $d);
 }
+// 计算两个日期间的自然月数（包括起止月）
+function count_months($start, $end) {
+    $start_ts = strtotime($start);
+    $end_ts = strtotime($end);
+    if ($start_ts === false || $end_ts === false) return 0;
+    $start_y = date('Y', $start_ts);
+    $start_m = date('m', $start_ts);
+    $end_y = date('Y', $end_ts);
+    $end_m = date('m', $end_ts);
+    return ($end_y - $start_y) * 12 + ($end_m - $start_m) + 1;
+}
 
 $package_types = [
     '小规模纳税人',
@@ -58,11 +69,9 @@ if ($_SERVER['REQUEST_METHOD']=='POST') {
         $price_per_year = floatval($_POST['price_per_year']);
         $start_fixed = fix_date($start);
         $end_fixed = fix_date($end);
-        $start_ts = strtotime($start_fixed);
-        $end_ts = strtotime($end_fixed);
-        if ($start_ts === false || $end_ts === false) die("日期格式错误!");
-        $days = ($end_ts - $start_ts) / (60*60*24) + 1;
-        $fee = round($price_per_year * $days / 365, 2);
+        // 统一用月数来计费，和 segment_add.php 保持一致
+        $fee = round($price_per_year * $months / 12, 2);
+
         $stmt2 = $db->prepare("INSERT INTO service_segments (service_period_id, start_date, end_date, price_per_year, segment_fee, package_type, remark) VALUES (:service_period_id, :start_date, :end_date, :price_per_year, :segment_fee, :package_type, :remark)");
         $stmt2->bindValue(':service_period_id', $period_id);
         $stmt2->bindValue(':start_date', $start_fixed);
