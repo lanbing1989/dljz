@@ -28,7 +28,9 @@
 - **V1.8**
   1.8版本完全不同于之前的版本，增加了**合同签署流程（含短信验证码、合同编号、哈希、查验二维码、数据存证、低成本防伪）**，需要在云片网注册账号、实名认证、获取APIKEY并且需要报备短信前面和模板。使用难度和成本增加，故单独分支，单独维护。
   需要修改`send_sms.php`文件中的`yunpian_apikey`和`你的签名`这两个参数。
-
+- **V1.8.2**
+  安全性增强，默认使用pulic作为运行目录，数据库会在上级目录/accounting.db，主页在/pulic/index.php，这样数据库不会暴露在外部。
+  修改所有安全性相关代码，增加了SQL注入（参数绑定/预处理）XSS（输出时转义）CSRF防护（POST表单）权限校验等，
 ---
 
 ## 功能简介
@@ -67,32 +69,33 @@
 ## 目录结构
 
 ```
-/index.php                    # 客户列表页
-/contract_add.php             # 新增客户
-/contract_edit.php            # 编辑客户
-/contract_delete.php          # 删除客户
-/contract_detail.php          # 客户详情/服务期/临时收费
-/service_period_add.php       # 新增/续费服务期
-/service_period_delete.php    # 删除服务期
-/segment_add.php              # 服务期分段调整
-/payment_list.php             # 周期性收费记录
-/payment_add.php              # 新增周期性收费
-/payment_delete.php           # 删除周期性收费
-/temp_payment.php             # 临时收费录入与管理
-/expire_remind.php            # 到期提醒
-/remind_list.php              # 催收提醒
-/user_manage.php                    # 用户管理
-/export_all_data.php          # 一键导出所有业务数据为CSV
-/ht_agreements.php            # 合同管理
-/ht_agreement_add.php         # 新建合同
-/ht_agreement_detail.php      # 合同详情
-/ht_agreement_sign.php        # 在线签署合同
-/ht_agreement_delete.php      # 删除合同
-/ht_contract_templates.php    # 合同模板管理
-/ht_contract_template_edit.php# 编辑/新建合同模板
-/db.php                       # 数据库及表结构初始化
-/navbar.php                   # 通用导航栏
-/accounting.db                # SQLite数据库（自动生成）
+/public/
+/public/index.php                    # 客户列表页
+/public/contract_add.php             # 新增客户
+/public/contract_edit.php            # 编辑客户
+/public/contract_delete.php          # 删除客户
+/public/contract_detail.php          # 客户详情/服务期/临时收费
+/public/service_period_add.php       # 新增/续费服务期
+/public/service_period_delete.php    # 删除服务期
+/public/segment_add.php              # 服务期分段调整
+/public/payment_list.php             # 周期性收费记录
+/public/payment_add.php              # 新增周期性收费
+/public/payment_delete.php           # 删除周期性收费
+/public/temp_payment.php             # 临时收费录入与管理
+/public/expire_remind.php            # 到期提醒
+/public/remind_list.php              # 催收提醒
+/public/user_manage.php                    # 用户管理
+/public/export_all_data.php          # 一键导出所有业务数据为CSV
+/public/ht_agreements.php            # 合同管理
+/public/ht_agreement_add.php         # 新建合同
+/public/ht_agreement_detail.php      # 合同详情
+/public/ht_agreement_sign.php        # 在线签署合同
+/public/ht_agreement_delete.php      # 删除合同
+/public/ht_contract_templates.php    # 合同模板管理
+/public/ht_contract_template_edit.php# 编辑/新建合同模板
+/public/db.php                       # 数据库及表结构初始化
+/public/navbar.php                   # 通用导航栏
+/accounting.db                       # SQLite数据库（自动生成）
 ```
 
 ---
